@@ -1,6 +1,8 @@
 package com.reactnativecommunity.webview;
 
-import android.webkit.WebView;
+//import android.webkit.WebView;
+
+import org.apache.cordova.engine.SystemWebView;
 
 /**
  * Implement this interface in order to config your {@link WebView}. An instance of that
@@ -8,5 +10,5 @@ import android.webkit.WebView;
  */
 public interface WebViewConfig {
 
-  void configWebView(WebView webView);
+  void configWebView(SystemWebView webView);
 }
