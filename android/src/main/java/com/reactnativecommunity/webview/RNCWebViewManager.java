@@ -2,6 +2,7 @@ package com.reactnativecommunity.webview;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
@@ -65,7 +66,14 @@ import com.reactnativecommunity.webview.events.TopLoadingStartEvent;
 import com.reactnativecommunity.webview.events.TopMessageEvent;
 import com.reactnativecommunity.webview.events.TopShouldStartLoadWithRequestEvent;
 
+import org.apache.cordova.ConfigXmlParser;
+import org.apache.cordova.CordovaWebView;
+import org.apache.cordova.CordovaWebViewImpl;
+import org.apache.cordova.engine.SystemWebChromeClient;
 import org.apache.cordova.engine.SystemWebView;
+import org.apache.cordova.engine.SystemWebViewClient;
+import org.apache.cordova.engine.SystemWebViewEngine;
+import org.apache.cordova.CordovaInterfaceImpl;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -137,6 +145,10 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
   protected @Nullable String mUserAgent = null;
   protected @Nullable String mUserAgentWithApplicationName = null;
 
+  protected SystemWebViewEngine mViewEngine;
+  protected CordovaInterfaceImpl mCordovaInterface;
+  protected CordovaWebView mWebInterface;
+
   public RNCWebViewManager() {
     mWebViewConfig = new WebViewConfig() {
       public void configWebView(SystemWebView webView) {
@@ -168,6 +180,14 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
   @TargetApi(Build.VERSION_CODES.LOLLIPOP)
   protected SystemWebView createViewInstance(ThemedReactContext reactContext) {
     RNCWebView webView = createRNCWebViewInstance(reactContext);
+    Activity activity = reactContext.getCurrentActivity();
+    //ConfigXmlParser parser = new ConfigXmlParser();
+    //parser.parse(activity);
+    mCordovaInterface = new CordovaInterfaceImpl(activity);
+    mViewEngine = new SystemWebViewEngine(webView);
+    CordovaWebViewImpl webInterface = new CordovaWebViewImpl(mViewEngine);
+    webInterface.init(mCordovaInterface);
+
     setupWebChromeClient(reactContext, webView);
     reactContext.addLifecycleEventListener(webView);
     mWebViewConfig.configWebView(webView);
@@ -532,7 +552,7 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
   @Override
   protected void addEventEmitters(ThemedReactContext reactContext, SystemWebView view) {
     // Do not register default touch emitter and let WebView implementation handle touches
-    view.setWebViewClient(new RNCWebViewClient());
+    view.setWebViewClient(new RNCWebViewClient(mViewEngine));
   }
 
   @Override
@@ -641,7 +661,7 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
   protected void setupWebChromeClient(ReactContext reactContext, SystemWebView webView) {
     if (mAllowsFullscreenVideo) {
       int initialRequestedOrientation = reactContext.getCurrentActivity().getRequestedOrientation();
-      mWebChromeClient = new RNCWebChromeClient(reactContext, webView) {
+      mWebChromeClient = new RNCWebChromeClient(reactContext, webView, mViewEngine) {
         @Override
         public Bitmap getDefaultVideoPoster() {
           return Bitmap.createBitmap(50, 50, Bitmap.Config.ARGB_8888);
@@ -699,7 +719,7 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
       if (mWebChromeClient != null) {
         mWebChromeClient.onHideCustomView();
       }
-      mWebChromeClient = new RNCWebChromeClient(reactContext, webView) {
+      mWebChromeClient = new RNCWebChromeClient(reactContext, webView, mViewEngine) {
         @Override
         public Bitmap getDefaultVideoPoster() {
           return Bitmap.createBitmap(50, 50, Bitmap.Config.ARGB_8888);
@@ -709,15 +729,26 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
     }
   }
 
-  protected static class RNCWebViewClient extends WebViewClient {
+  protected static class RNCWebViewClient extends SystemWebViewClient {
 
     protected boolean mLastLoadFailed = false;
     protected @Nullable
     ReadableArray mUrlPrefixesForDefaultIntent;
+    SystemWebViewEngine mParentEngine;
+
+    public RNCWebViewClient(SystemWebViewEngine parentEngine) {
+      super(parentEngine);
+      mParentEngine = parentEngine;
+    }
+
+    public SystemWebViewEngine getEngine() {
+      return mParentEngine;
+    }
 
     @Override
     public void onPageFinished(WebView webView, String url) {
-      super.onPageFinished(webView, url);
+      String superUrl = url.startsWith("about") ? "temp" : url;
+      super.onPageFinished(webView, superUrl);
 
       if (!mLastLoadFailed) {
         RNCWebView reactWebView = (RNCWebView) webView;
@@ -826,7 +857,7 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
     }
   }
 
-  protected static class RNCWebChromeClient extends WebChromeClient implements LifecycleEventListener {
+  protected static class RNCWebChromeClient extends SystemWebChromeClient implements LifecycleEventListener {
     protected static final FrameLayout.LayoutParams FULLSCREEN_LAYOUT_PARAMS = new FrameLayout.LayoutParams(
       LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER);
 
@@ -845,7 +876,8 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
     protected View mVideoView;
     protected WebChromeClient.CustomViewCallback mCustomViewCallback;
 
-    public RNCWebChromeClient(ReactContext reactContext, SystemWebView webView) {
+    public RNCWebChromeClient(ReactContext reactContext, SystemWebView webView, SystemWebViewEngine engine) {
+      super(engine);
       this.mReactContext = reactContext;
       this.mWebView = webView;
     }
@@ -925,15 +957,15 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
       callback.invoke(origin, true, false);
     }
 
-    protected void openFileChooser(ValueCallback<Uri> filePathCallback, String acceptType) {
+    public void openFileChooser(ValueCallback<Uri> filePathCallback, String acceptType) {
       getModule(mReactContext).startPhotoPickerIntent(filePathCallback, acceptType);
     }
 
-    protected void openFileChooser(ValueCallback<Uri> filePathCallback) {
+    public void openFileChooser(ValueCallback<Uri> filePathCallback) {
       getModule(mReactContext).startPhotoPickerIntent(filePathCallback, "");
     }
 
-    protected void openFileChooser(ValueCallback<Uri> filePathCallback, String acceptType, String capture) {
+    public void openFileChooser(ValueCallback<Uri> filePathCallback, String acceptType, String capture) {
       getModule(mReactContext).startPhotoPickerIntent(filePathCallback, acceptType);
     }
 
@@ -1009,6 +1041,8 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
     @Override
     public void onHostDestroy() {
       cleanupCallbacksAndDestroy();
+      mRNCWebViewClient.getEngine().destroy();
+      this.destroy();
     }
 
     @Override
@@ -1078,7 +1112,7 @@ public class RNCWebViewManager extends SimpleViewManager<SystemWebView> {
     }
 
     public void callInjectedJavaScript() {
-      if (getSettings().getJavaScriptEnabled() &&
+        if (getSettings().getJavaScriptEnabled() &&
         injectedJS != null &&
         !TextUtils.isEmpty(injectedJS)) {
         evaluateJavascriptWithFallback("(function() {\n" + injectedJS + ";\n})();");

@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 
+import Cordova from './examples/Cordova';
 import Alerts from './examples/Alerts';
 import Scrolling from './examples/Scrolling';
 import Background from './examples/Background';
@@ -17,6 +18,14 @@ import Uploads from './examples/Uploads';
 import Injection from './examples/Injection';
 
 const TESTS = {
+  Cordova: {
+    title: 'Cordova',
+    testId: 'cordova',
+    description: 'Cordova tests',
+    render() {
+      return <Cordova />;
+    },
+  },
   Alerts: {
     title: 'Alerts',
     testId: 'alerts',
@@ -59,13 +68,13 @@ const TESTS = {
   },
 };
 
-type Props = {};
-type State = {restarting: boolean, currentTest: Object};
+interface Props {}
+interface State {restarting: boolean, currentTest: Object}
 
 export default class App extends Component<Props, State> {
   state = {
     restarting: false,
-    currentTest: TESTS.Alerts,
+    currentTest: TESTS.Cordova,
   };
 
   _simulateRestart = () => {
@@ -95,6 +104,11 @@ export default class App extends Component<Props, State> {
         </TouchableOpacity>
 
         <View style={styles.testPickerContainer}>
+          <Button
+            testID="testType_cordova"
+            title="Cordova"
+            onPress={() => this._changeTest('Cordova')}
+          />
           <Button
             testID="testType_alerts"
             title="Alerts"
