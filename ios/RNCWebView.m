@@ -8,6 +8,7 @@
 #import "RNCWebView.h"
 #import <React/RCTConvert.h>
 #import <React/RCTAutoInsetsProtocol.h>
+#import <Cordova/CDVWebViewEngine.h>
 #import "RNCWKProcessPoolManager.h"
 #if !TARGET_OS_OSX
 #import <UIKit/UIKit.h>
@@ -84,6 +85,7 @@ static NSDictionary* customCertificatesForHost;
 @property (nonatomic, strong) WKUserScript *postMessageScript;
 @property (nonatomic, strong) WKUserScript *atStartScript;
 @property (nonatomic, strong) WKUserScript *atEndScript;
+@property (nonatomic, copy) CDVWebViewEngine *webViewEngine;
 @end
 
 @implementation RNCWebView
@@ -270,8 +272,11 @@ static NSDictionary* customCertificatesForHost;
       _webView.scrollView.contentInsetAdjustmentBehavior = _savedContentInsetAdjustmentBehavior;
     }
 #endif
+      
+    _webViewEngine = [[CDVWebViewEngine alloc] initWithWebview:_webView];
 
     [self addSubview:_webView];
+    [_webViewEngine pluginInitialize];
     [self setHideKeyboardAccessoryView: _savedHideKeyboardAccessoryView];
     [self setKeyboardDisplayRequiresUserAction: _savedKeyboardDisplayRequiresUserAction];
     [self visitSource];
@@ -295,6 +300,7 @@ static NSDictionary* customCertificatesForHost;
         _webView.scrollView.delegate = nil;
 #endif // !TARGET_OS_OSX
         _webView = nil;
+        _webViewEngine = nil;
     }
 
     [super removeFromSuperview];
